@@ -1,0 +1,8 @@
+package: github.com/andrewkroh/go-win-event-generator
+import:
+- package: github.com/andrewkroh/sys
+  version: 287798fe3e430efeb9318b95ff52353aaa2b59b1
+  subpackages:
+  - /windows/svc/eventlog
+- package: golang.org/x/sys
+  version: eb2c74142fd19a79b3f237334c7384d5167b1b46

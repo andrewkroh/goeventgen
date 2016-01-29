@@ -1,0 +1,40 @@
+language: go
+
+os:
+  - linux
+
+go:
+  - 1.5.3
+
+env:
+  global:
+    - GO15VENDOREXPERIMENT=1
+    - PROJ="github.com/andrewkroh/goeventgen"
+
+sudo: false
+
+before_install:
+  # Put project into proper GOPATH location (important for forks).
+  - mkdir -p $HOME/gopath/src/${PROJ}
+  - rsync -az ${TRAVIS_BUILD_DIR}/ $HOME/gopath/src/${PROJ}/
+  - export TRAVIS_BUILD_DIR=$HOME/gopath/src/${PROJ}
+  - cd $HOME/gopath/src/${PROJ}
+
+install:
+  - go get github.com/mitchellh/gox
+
+script:
+  - gofmt -l *.go | read && echo "Code differs from gofmt's style. Run 'gofmt -w .'" 1>&2 && exit 1 || true
+  - mkdir -p build/bin
+  - gox -output="build/bin/{{.Dir}}-{{.Arch}}" -os="windows"
+
+deploy:
+  provider: releases
+  file:
+    - "$HOME/gopath/src/${PROJ}/build/bin/goeventgen-386.exe"
+    - "$HOME/gopath/src/${PROJ}/build/bin/goeventgen-amd64.exe"
+  api_key:
+    secure: jV0dMoBfIV4YPCQPFCoDspUXlqyJBMrufM/4GbUFGmS5kqcf3bxN10RBG1cPFI6IPII5n9VY4Q9ZajUVfC6hDUTfHdQvdqPg8H2h9v/Ht8RJ51s2uUSAR+cGaF4H/viw+vtmXtKWqMtVIi+VGlF4Yo/QiOqb4PAb/ejaETU/hjQBqahfMQ05dBG7cWrsmdWgkgW5rzy+Ara2la+tZBAu/9fE6/PitVL1ZxY74+8YyWR0vBKXjxkTmBRCNwnYsIn3qAAMJ9tEWgYT/4j75BgW//h9LBI1K2OAXlOAwBGH8RSOkcchaKGM315vcvFQEWUoRkyRgLu2ezHijh4VLmfhNH9BS3ouMLUtXtdkvfrZQYoFDktVALKYKkfAfyrmY5j0zXOrHspxjn26QV0p1UbZHxiKAs4A6ktcNB38QLVKFYXeEprOAoKK1XhODIRVh5YKEx+U5luosVOQFikOJymBAHnLk8dn5quMdHUoBmKhFvXiVdfi0qM+oB9BL+xIO+arPnqyQt1ClW9v7IhSY/X8gfoZWThlKzNhJ89dMZb/T6VXFki/D+lXq9ilvdB98XNEp6XwUM5xWBb/RZqSh+EDkIN1oSQyIt0l3iecBFale7yY3yVDfvsPhBOrmg0Mzo9+JQV2ky2VLmvyIF9gWudVg5TbL1D2akWXCkEC/+543Gw=
+  on:
+    tags: true
+    repo: andrewkroh/goeventgen
