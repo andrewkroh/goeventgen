@@ -14,6 +14,8 @@ Usage of goeventgen.exe:
         event id (default 512)
   -l string
         event source name (default "EventSystem")
+  -max uint
+        maximum events to write
 ```
 
 ### Download
