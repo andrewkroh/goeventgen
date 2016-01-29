@@ -7,11 +7,13 @@ new event record for each line of text that it reads from the specified file.
 
 ```
 PS C:\Users\vagrang> goeventgen-amd64.exe -h
-Usage of go-win-event-generator.exe:
+Usage of goeventgen.exe:
   -f string
         file to read
+  -id int
+        event id (default 512)
   -l string
-        event log (default "Application")
+        event source name (default "EventSystem")
 ```
 
 ### Download

@@ -17,7 +17,8 @@ const eventCreateMsgFile = "%SystemRoot%\\System32\\EventCreate.exe"
 
 var (
 	file = flag.String("f", "", "file to read")
-	log  = flag.String("l", "Application", "event log")
+	log  = flag.String("l", "EventSystem", "event source name")
+	id   = flag.Int("id", 512, "event id")
 )
 
 func main() {
@@ -45,7 +46,7 @@ func main() {
 	var count uint64
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		log.Report(eventlog.Info, 1, []string{scanner.Text()})
+		log.Report(eventlog.Info, uint32(*id), []string{scanner.Text()})
 		count++
 	}
 	fmt.Println("Count:", count)
