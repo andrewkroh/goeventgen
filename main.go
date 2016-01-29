@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/andrewkroh/sys/windows/svc/eventlog"
 )
@@ -19,6 +20,7 @@ var (
 	file = flag.String("f", "", "file to read")
 	log  = flag.String("l", "EventSystem", "event source name")
 	id   = flag.Int("id", 512, "event id")
+	max  = flag.Uint64("max", 0, "maximum events to write")
 )
 
 func main() {
@@ -43,13 +45,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	start := time.Now()
 	var count uint64
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		log.Report(eventlog.Info, uint32(*id), []string{scanner.Text()})
 		count++
+
+		if *max != 0 && count >= *max {
+			break
+		}
 	}
-	fmt.Println("Count:", count)
+	elapsed := time.Since(start)
+	fmt.Println("elapsed time:", elapsed)
+	fmt.Println("event count:", count)
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintln(os.Stderr, "reading file:", err)
 		os.Exit(1)
