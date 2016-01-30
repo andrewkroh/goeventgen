@@ -7,9 +7,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/andrewkroh/sys/windows/svc/eventlog"
+	"github.com/juju/ratelimit"
 )
 
 // EventCreate.exe has valid event IDs in the range of 1-1000 where each
@@ -19,9 +23,53 @@ const eventCreateMsgFile = "%SystemRoot%\\System32\\EventCreate.exe"
 var (
 	file = flag.String("f", "", "file to read")
 	log  = flag.String("l", "EventSystem", "event source name")
-	id   = flag.Int("id", 512, "event id")
-	max  = flag.Uint64("max", 0, "maximum events to write")
+	id   = flag.Uint("id", 512, "event id")
+	max  = flag.Uint("max", 0, "maximum events to write")
+	rate = flag.Int64("rate", 0, "rate limit in events per second")
 )
+
+type eventgen struct {
+	file  *os.File          // Input file to read from.
+	log   *eventlog.Log     // Windows event log.
+	tb    *ratelimit.Bucket // Token bucker for rate limiting.
+	count uint32            // Total number of events written.
+	max   uint32            // Max lines to read.
+	done  chan struct{}     // Channel used to signal to stop.
+}
+
+func (eg *eventgen) installSignalHandler() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		once := sync.Once{}
+		for _ = range c {
+			once.Do(func() { close(eg.done) })
+		}
+	}()
+}
+
+func (eg *eventgen) reportEvents(wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	scanner := bufio.NewScanner(eg.file)
+	for scanner.Scan() {
+		if eg.tb != nil {
+			eg.tb.Wait(1)
+		}
+		eg.log.Report(eventlog.Info, uint32(*id), []string{scanner.Text()})
+
+		numRead := atomic.AddUint32(&eg.count, 1)
+		if eg.max != 0 && numRead >= eg.max {
+			return
+		}
+
+		select {
+		case <-eg.done:
+			return
+		default:
+		}
+	}
+}
 
 func main() {
 	flag.Parse()
@@ -32,6 +80,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Open a handle to the event log.
+	log, err := eventlog.Open(*log)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "opening eventlog:", err)
+		os.Exit(1)
+	}
+
+	// Open the file on disk.
 	file, err := os.Open(*file)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "opening file:", err)
@@ -39,28 +95,28 @@ func main() {
 	}
 	defer file.Close()
 
-	log, err := eventlog.Open(*log)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "opening eventlog:", err)
-		os.Exit(1)
+	eg := &eventgen{
+		file: file,
+		max:  uint32(*max),
+		done: make(chan struct{}),
+		log:  log,
+	}
+	eg.installSignalHandler()
+
+	// Rate limit writing using a token bucket.
+	if *rate != 0 {
+		eg.tb = ratelimit.NewBucketWithRate(float64(*rate), *rate)
 	}
 
 	start := time.Now()
-	var count uint64
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		log.Report(eventlog.Info, uint32(*id), []string{scanner.Text()})
-		count++
 
-		if *max != 0 && count >= *max {
-			break
-		}
-	}
+	// Start a new worker to read lines from the file.
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go eg.reportEvents(wg)
+	wg.Wait()
+
 	elapsed := time.Since(start)
 	fmt.Println("elapsed time:", elapsed)
-	fmt.Println("event count:", count)
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "reading file:", err)
-		os.Exit(1)
-	}
+	fmt.Println("event count:", atomic.LoadUint32(&eg.count))
 }

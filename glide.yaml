@@ -6,3 +6,5 @@ import:
   - /windows/svc/eventlog
 - package: golang.org/x/sys
   version: eb2c74142fd19a79b3f237334c7384d5167b1b46
+- package: github.com/juju/ratelimit
+  version: 77ed1c8a01217656d2080ad51981f6e99adaa177
