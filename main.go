@@ -26,6 +26,10 @@ var (
 	id   = flag.Uint("id", 512, "event id")
 	max  = flag.Uint("max", 0, "maximum events to write")
 	rate = flag.Int64("rate", 0, "rate limit in events per second")
+
+	install  = flag.Bool("install", false, "install new event source")
+	provider = flag.String("provider", "Application", "provider name to install")
+	source   = flag.String("source", "", "source name to install, must be specified to install new event source")
 )
 
 type eventgen struct {
@@ -71,8 +75,41 @@ func (eg *eventgen) reportEvents(wg *sync.WaitGroup) {
 	}
 }
 
+func registerSource(provider, sourceName string) error {
+	if provider == "" {
+		return fmt.Errorf("provider cannot be empty")
+	}
+	if sourceName == "" {
+		return fmt.Errorf("source cannot be empty")
+	}
+
+	alreadyInstalled, err := eventlog.InstallAsEventCreate(provider, sourceName,
+		eventlog.Error|eventlog.Warning|eventlog.Info|eventlog.Success|
+			eventlog.AuditSuccess|eventlog.AuditFailure)
+	if err != nil {
+		return err
+	}
+
+	if alreadyInstalled {
+		fmt.Printf("%s/%s already exists\n", provider, sourceName)
+		return nil
+	}
+
+	fmt.Printf("%s/%s installed\n", provider, sourceName)
+	return nil
+}
+
 func main() {
 	flag.Parse()
+
+	if *install {
+		err := registerSource(*provider, *source)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	if *file == "" {
 		fmt.Fprintln(os.Stderr, "-f is required")
