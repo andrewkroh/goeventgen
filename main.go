@@ -60,8 +60,15 @@ func (eg *eventgen) reportEvents(wg *sync.WaitGroup) {
 	scanner := bufio.NewScanner(eg.file)
 	for scanner.Scan() {
 		if eg.tb != nil {
-			eg.tb.Wait(1)
+			for !eg.tb.WaitMaxDuration(1, time.Second) {
+				select {
+				case <-eg.done:
+					return
+				default:
+				}
+			}
 		}
+
 		eg.log.Report(eventlog.Info, uint32(*id), []string{scanner.Text()})
 
 		numRead := atomic.AddUint32(&eg.count, 1)
