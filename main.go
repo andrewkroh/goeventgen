@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
 	"sync"
@@ -21,11 +22,12 @@ import (
 const eventCreateMsgFile = "%SystemRoot%\\System32\\EventCreate.exe"
 
 var (
-	file = flag.String("f", "", "file to read")
-	log  = flag.String("l", "EventSystem", "event source name")
-	id   = flag.Uint("id", 512, "event id")
-	max  = flag.Uint("max", 0, "maximum events to write")
-	rate = flag.Int64("rate", 0, "rate limit in events per second")
+	file     = flag.String("f", "", "file to read")
+	log      = flag.String("l", "EventSystem", "event source name")
+	id       = flag.Uint("id", 512, "event id")
+	max      = flag.Uint("max", 0, "maximum events to write")
+	rate     = flag.Float64("rate", 0, "rate limit in events per second")
+	interval = flag.Duration("interval", 0, "interval at which to send events")
 
 	install  = flag.Bool("install", false, "install new event source")
 	provider = flag.String("provider", "Application", "provider name to install")
@@ -142,7 +144,11 @@ func main() {
 
 	// Rate limit writing using a token bucket.
 	if *rate != 0 {
-		eg.tb = ratelimit.NewBucketWithRate(float64(*rate), *rate)
+		eg.tb = ratelimit.NewBucketWithRate(*rate, int64(math.Ceil(*rate)))
+		eg.tb.TakeAvailable(eg.tb.Available())
+	} else if *interval != 0 {
+		eg.tb = ratelimit.NewBucket(*interval, 1)
+		eg.tb.TakeAvailable(eg.tb.Available())
 	}
 
 	start := time.Now()
